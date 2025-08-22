@@ -204,9 +204,14 @@ async function handleRegistration(event) {
     }
     button.disabled = true; button.textContent = 'Processando...';
     try {
-        const q = query(registrationsCollection, where("lectureId", "==", lectureId), where("studentEmail", "==", email));
+        // --- ALTERAÇÃO PRINCIPAL AQUI ---
+        // A consulta agora verifica se o e-mail existe em QUALQUER palestra,
+        // removendo a condição 'where("lectureId", "==", lectureId)'.
+        const q = query(registrationsCollection, where("studentEmail", "==", email));
         const snapshot = await getDocs(q);
-        if (!snapshot.empty) { displayMessage(lectureId, 'E-mail já inscrito nesta palestra.', 'orange'); throw "duplicado"; }
+
+        // A mensagem de erro também foi atualizada para ser mais clara.
+        if (!snapshot.empty) { displayMessage(lectureId, 'Você já está inscrito em uma palestra. Exclua sua inscrição anterior para se inscrever em outra.', 'orange'); throw "duplicado"; }
 
         await addDoc(registrationsCollection, {
             lectureId, studentName: name, studentEmail: email, serie, curso, periodo,
@@ -284,7 +289,12 @@ function listenToRegistrations() {
             const data = doc.data();
             if (data.lectureId && counts.hasOwnProperty(data.lectureId)) {
                 counts[data.lectureId]++;
-                registrations[data.lectureId].push(data.studentName);
+                // MODIFICAÇÃO 1: Armazena um objeto com nome, série e curso
+                registrations[data.lectureId].push({
+                    name: data.studentName,
+                    serie: data.serie,
+                    curso: data.curso
+                });
             }
         });
 
@@ -303,8 +313,11 @@ function listenToRegistrations() {
             }
 
             const listUl = document.getElementById(`list-ul-${l.id}`);
-            const names = registrations[l.id];
-            listUl.innerHTML = names.length > 0 ? names.map(n=>`<li>${n}</li>`).join('') : '<li>Ainda não há inscritos.</li>';
+            const registrants = registrations[l.id];
+            // MODIFICAÇÃO 2: Gera a lista exibindo nome, série e curso
+            listUl.innerHTML = registrants.length > 0
+                ? registrants.map(r => `<li>${r.name} - ${r.serie}ª Série - ${r.curso}</li>`).join('')
+                : '<li>Ainda não há inscritos.</li>';
         });
         updateUIForAuthState(auth.currentUser); // Garante que o estado dos formulários esteja correto após o login
     });
