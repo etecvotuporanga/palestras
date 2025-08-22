@@ -19,6 +19,15 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        /* Estilos para a aba ativa e inativa */
+        .tab-btn {
+            transition: all 0.3s ease;
+        }
+        .tab-btn.active {
+            border-color: #3b82f6; /* blue-500 */
+            background-color: #3b82f6; /* blue-500 */
+            color: white;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -40,7 +49,14 @@
         </div>
     </header>
 
-    <main id="lectures-container" class="space-y-6">
+    <div id="tabs-container" class="mb-6 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+        <button data-day="1" class="tab-btn active font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 1</button>
+        <button data-day="2" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 2</button>
+        <button data-day="3" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 3</button>
+        <button data-day="4" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 4</button>
+    </div>
+
+    <main id="lectures-by-day-container">
         <div class="flex justify-center items-center h-40">
             <div class="loader"></div>
             <p class="ml-4 text-gray-600">Carregando palestras...</p>
@@ -53,7 +69,7 @@
 </div>
 
 <script type="module">
-// Importações do Firebase, adicionando doc e deleteDoc
+// Importações do Firebase
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -74,13 +90,21 @@ const provider = new GoogleAuthProvider();
 
 const registrationsCollection = collection(db, `artifacts/default-lecture-app/public/data/registrations`);
 
-const lectures = [
+// --- NOVA ESTRUTURA DE DADOS PARA AS PALESTRAS ---
+const lectureTemplate = [
     { id: 'medicina', title: 'Avanços Recentes em Medicina' },
     { id: 'ciberseguranca', title: 'Segurança Cibernética no Mundo Moderno' },
     { id: 'robotica', title: 'Robótica Aplicada à Engenharia' },
     { id: 'ia', title: 'Inteligência Artificial e o Futuro do Trabalho' },
     { id: 'marketing', title: 'Marketing Digital Pós-Pandemia' },
     { id: 'financas', title: 'Finanças Pessoais e Investimentos para Jovens' }
+];
+
+const lecturesByDay = [
+    { day: 1, lectures: JSON.parse(JSON.stringify(lectureTemplate)) },
+    { day: 2, lectures: JSON.parse(JSON.stringify(lectureTemplate)) },
+    { day: 3, lectures: JSON.parse(JSON.stringify(lectureTemplate)) },
+    { day: 4, lectures: JSON.parse(JSON.stringify(lectureTemplate)) }
 ];
 const TOTAL_SPOTS = 40;
 
@@ -89,8 +113,9 @@ const authButton = document.getElementById('auth-button');
 const userInfoDiv = document.getElementById('user-info');
 const userNameP = document.getElementById('user-name');
 const userEmailP = document.getElementById('user-email');
-const lecturesContainer = document.getElementById('lectures-container');
+const lecturesContainer = document.getElementById('lectures-by-day-container');
 const deleteMyRegistrationsButton = document.getElementById('delete-my-registrations-button');
+const tabsContainer = document.getElementById('tabs-container');
 
 // --- AUTENTICAÇÃO ---
 onAuthStateChanged(auth, user => updateUIForAuthState(user));
@@ -100,14 +125,14 @@ function updateUIForAuthState(user) {
         userNameP.textContent = user.displayName || 'Usuário';
         userEmailP.textContent = user.email || '';
         userInfoDiv.classList.remove('hidden');
-        deleteMyRegistrationsButton.classList.remove('hidden'); // Mostra o botão de excluir
+        deleteMyRegistrationsButton.classList.remove('hidden');
         authButton.textContent = 'Sair';
         authButton.onclick = () => signOut(auth);
         document.querySelectorAll('.student-email-input').forEach(i => i.value = user.email || '');
         document.querySelectorAll('.student-name-input').forEach(i => i.value = user.displayName || '');
     } else {
         userInfoDiv.classList.add('hidden');
-        deleteMyRegistrationsButton.classList.add('hidden'); // Esconde o botão de excluir
+        deleteMyRegistrationsButton.classList.add('hidden');
         authButton.textContent = 'Login com Google';
         authButton.onclick = () => signInWithPopup(auth, provider);
         document.querySelectorAll('.student-email-input').forEach(i => i.value = '');
@@ -115,220 +140,219 @@ function updateUIForAuthState(user) {
     }
 }
 
-// --- RENDERIZAÇÃO DAS PALESTRAS ---
+// --- RENDERIZAÇÃO DAS PALESTRAS (MODIFICADO) ---
 function renderLectures() {
     lecturesContainer.innerHTML = '';
-    lectures.forEach(lecture => {
-        const card = document.createElement('div');
-        card.className = 'bg-white p-6 rounded-xl shadow-md';
-        card.id = `card-${lecture.id}`;
-        card.innerHTML = `
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-                <div>
-                    <h2 class="text-xl font-bold text-gray-800">${lecture.title}</h2>
-                    <p class="text-green-600 font-semibold mt-2">
-                        Vagas Preenchidas: <span id="count-${lecture.id}">0</span> / ${TOTAL_SPOTS}
-                    </p>
-                </div>
-                <div id="status-${lecture.id}" class="mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700">
-                    Aguardando...
-                </div>
-            </div>
-            <div class="mt-4 border-t pt-4">
-                <form id="form-${lecture.id}" data-lecture-id="${lecture.id}" class="space-y-4">
-                    <p class="text-sm font-medium text-gray-600">Inscreva-se agora:</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><input type="text" id="name-${lecture.id}" required placeholder="Seu nome completo" class="student-name-input w-full px-4 py-2 border rounded-lg"></div>
-                        <div><input type="email" id="email-${lecture.id}" required placeholder="Seu melhor e-mail" class="student-email-input w-full px-4 py-2 border rounded-lg"></div>
+    lecturesByDay.forEach(dayData => {
+        // Cria um container para cada dia
+        const dayContainer = document.createElement('div');
+        dayContainer.id = `day-content-${dayData.day}`;
+        dayContainer.className = 'space-y-6';
+        if (dayData.day !== 1) { // Esconde os outros dias por padrão
+            dayContainer.classList.add('hidden');
+        }
+
+        dayData.lectures.forEach(lecture => {
+            // IDs únicos para cada elemento, combinando dia e id da palestra
+            const uniqueIdPrefix = `dia${dayData.day}-${lecture.id}`;
+            const card = document.createElement('div');
+            card.className = 'bg-white p-6 rounded-xl shadow-md';
+            card.id = `card-${uniqueIdPrefix}`;
+            card.innerHTML = `
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                    <div>
+                        <h2 class="text-xl font-bold text-gray-800">${lecture.title}</h2>
+                        <p class="text-green-600 font-semibold mt-2">
+                            Vagas Preenchidas: <span id="count-${uniqueIdPrefix}">0</span> / ${TOTAL_SPOTS}
+                        </p>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <select id="serie-${lecture.id}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700">
-                                <option value="" disabled selected>Sua série</option>
-                                <option value="1">1ª Série</option>
-                                <option value="2">2ª Série</option>
-                                <option value="3">3ª Série</option>
-                            </select>
-                        </div>
-                        <div>
-                            <select id="curso-${lecture.id}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700">
-                                <option value="" disabled selected>Seu curso</option>
-                                <option value="Administração de Empresas">Administração de Empresas</option>
-                                <option value="Informática para Internet">Informática para Internet</option>
-                                <option value="Desenvolvimento de Sistemas">Desenvolvimento de Sistemas</option>
-                            </select>
-                        </div>
-                        <div>
-                            <select id="periodo-${lecture.id}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700">
-                                <option value="" disabled selected>Seu período</option>
-                                <option value="Integral">Integral</option>
-                                <option value="Noturno">Noturno</option>
-                            </select>
-                        </div>
+                    <div id="status-${uniqueIdPrefix}" class="mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700">
+                        Aguardando...
                     </div>
-                    <div class="flex flex-col sm:flex-row gap-3">
-                        <button type="submit" class="w-full sm:w-auto bg-green-600 text-white font-semibold px-6 py-2 rounded-lg">Confirmar Inscrição</button>
-                        <button type="button" class="view-registrations-btn w-full sm:w-auto bg-blue-500 text-white px-6 py-2 rounded-lg" data-lecture-id="${lecture.id}">Ver Inscritos</button>
-                    </div>
-                </form>
-                <div id="message-${lecture.id}" class="mt-3 text-sm font-medium"></div>
-                <div id="registrations-list-${lecture.id}" class="hidden mt-4 p-4 bg-gray-50 rounded-lg border max-h-60 overflow-y-auto">
-                    <h4 class="font-bold mb-2 text-gray-800">Inscritos:</h4>
-                    <ul id="list-ul-${lecture.id}" class="list-disc list-inside text-gray-700 space-y-1"></ul>
                 </div>
-            </div>
-        `;
-        lecturesContainer.appendChild(card);
+                <div class="mt-4 border-t pt-4">
+                    <form id="form-${uniqueIdPrefix}" data-lecture-id="${lecture.id}" data-day="${dayData.day}" class="space-y-4">
+                        <p class="text-sm font-medium text-gray-600">Inscreva-se agora:</p>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div><input type="text" id="name-${uniqueIdPrefix}" required placeholder="Seu nome completo" class="student-name-input w-full px-4 py-2 border rounded-lg"></div>
+                            <div><input type="email" id="email-${uniqueIdPrefix}" required placeholder="Seu melhor e-mail" class="student-email-input w-full px-4 py-2 border rounded-lg"></div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                             <div><select id="serie-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Sua série</option><option value="1">1ª Série</option><option value="2">2ª Série</option><option value="3">3ª Série</option></select></div>
+                            <div><select id="curso-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Seu curso</option><option value="Administração de Empresas">Administração de Empresas</option><option value="Informática para Internet">Informática para Internet</option><option value="Desenvolvimento de Sistemas">Desenvolvimento de Sistemas</option></select></div>
+                            <div><select id="periodo-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Seu período</option><option value="Integral">Integral</option><option value="Noturno">Noturno</option></select></div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row gap-3">
+                            <button type="submit" class="w-full sm:w-auto bg-green-600 text-white font-semibold px-6 py-2 rounded-lg">Confirmar Inscrição</button>
+                            <button type="button" class="view-registrations-btn w-full sm:w-auto bg-blue-500 text-white px-6 py-2 rounded-lg" data-unique-id="${uniqueIdPrefix}">Ver Inscritos</button>
+                        </div>
+                    </form>
+                    <div id="message-${uniqueIdPrefix}" class="mt-3 text-sm font-medium"></div>
+                    <div id="registrations-list-${uniqueIdPrefix}" class="hidden mt-4 p-4 bg-gray-50 rounded-lg border max-h-60 overflow-y-auto">
+                        <h4 class="font-bold mb-2 text-gray-800">Inscritos:</h4>
+                        <ul id="list-ul-${uniqueIdPrefix}" class="list-disc list-inside text-gray-700 space-y-1"></ul>
+                    </div>
+                </div>
+            `;
+            dayContainer.appendChild(card);
+        });
+        lecturesContainer.appendChild(dayContainer);
     });
     updateUIForAuthState(auth.currentUser);
 }
 
-// --- INSCRIÇÃO ---
+// --- INSCRIÇÃO (MODIFICADO) ---
 async function handleRegistration(event) {
     event.preventDefault();
     const user = auth.currentUser;
-    if (!user) { displayMessage(event.target.dataset.lectureId, 'Faça login com Google antes.', 'red'); return; }
+    if (!user) { displayMessageById(event.target.id, 'Faça login com Google antes.', 'red'); return; }
 
-    const lectureId = event.target.dataset.lectureId;
-    const form = document.getElementById(`form-${lectureId}`);
-    const name = document.getElementById(`name-${lectureId}`).value.trim();
-    const email = document.getElementById(`email-${lectureId}`).value.trim().toLowerCase();
-    const serie = document.getElementById(`serie-${lectureId}`).value;
-    const curso = document.getElementById(`curso-${lectureId}`).value;
-    const periodo = document.getElementById(`periodo-${lectureId}`).value;
-    const button = form.querySelector('button[type="submit"]');
+    const { lectureId, day } = event.target.dataset;
+    const uniqueIdPrefix = `dia${day}-${lectureId}`;
+    
+    const name = document.getElementById(`name-${uniqueIdPrefix}`).value.trim();
+    const email = document.getElementById(`email-${uniqueIdPrefix}`).value.trim().toLowerCase();
+    const serie = document.getElementById(`serie-${uniqueIdPrefix}`).value;
+    const curso = document.getElementById(`curso-${uniqueIdPrefix}`).value;
+    const periodo = document.getElementById(`periodo-${uniqueIdPrefix}`).value;
+    const button = event.target.querySelector('button[type="submit"]');
 
     if (!name || !email || !serie || !curso || !periodo) {
-        displayMessage(lectureId, 'Preencha todos os campos para se inscrever.', 'red');
+        displayMessage(uniqueIdPrefix, 'Preencha todos os campos para se inscrever.', 'red');
         return;
     }
     button.disabled = true; button.textContent = 'Processando...';
     try {
-        // --- ALTERAÇÃO PRINCIPAL AQUI ---
-        // A consulta agora verifica se o e-mail existe em QUALQUER palestra,
-        // removendo a condição 'where("lectureId", "==", lectureId)'.
-        const q = query(registrationsCollection, where("studentEmail", "==", email));
+        // ALTERAÇÃO: A consulta agora verifica se o e-mail já está inscrito em qualquer palestra NESTE DIA.
+        const q = query(registrationsCollection, where("studentEmail", "==", email), where("day", "==", parseInt(day)));
         const snapshot = await getDocs(q);
 
-        // A mensagem de erro também foi atualizada para ser mais clara.
-        if (!snapshot.empty) { displayMessage(lectureId, 'Você já está inscrito em uma palestra. Exclua sua inscrição anterior para se inscrever em outra.', 'orange'); throw "duplicado"; }
-
-        await addDoc(registrationsCollection, {
-            lectureId, studentName: name, studentEmail: email, serie, curso, periodo,
-            registeredAt: serverTimestamp(), userId: user.uid
-        });
-        displayMessage(lectureId, 'Inscrição realizada com sucesso!', 'green');
-        form.reset();
-        updateUIForAuthState(auth.currentUser); // Atualiza os campos de nome e e-mail
-    } catch (err) {
-        if (err !== "duplicado") displayMessage(lectureId, 'Erro ao registrar. Tente novamente.', 'red');
-    } finally { button.disabled = false; button.textContent = 'Confirmar Inscrição'; }
-}
-
-// --- NOVA FUNÇÃO: EXCLUIR TODAS AS INSCRIÇÕES DO USUÁRIO ---
-async function handleDeleteMyRegistrations() {
-    const user = auth.currentUser;
-    if (!user || !user.email) {
-        alert("Você precisa estar logado para excluir suas inscrições.");
-        return;
-    }
-
-    if (!confirm("Tem certeza que deseja excluir TODAS as suas inscrições? Esta ação não pode ser desfeita.")) {
-        return;
-    }
-
-    this.disabled = true;
-    this.textContent = "Excluindo...";
-
-    try {
-        // 1. Encontrar todas as inscrições com o e-mail do usuário
-        const q = query(registrationsCollection, where("studentEmail", "==", user.email));
-        const querySnapshot = await getDocs(q);
-
-        if (querySnapshot.empty) {
-            alert("Nenhuma inscrição encontrada para o seu e-mail.");
-            return;
+        if (!snapshot.empty) {
+            displayMessage(uniqueIdPrefix, 'Você já está inscrito em uma palestra para este dia.', 'orange');
+            throw "duplicado";
         }
 
-        // 2. Criar uma promessa de exclusão para cada documento encontrado
-        const deletePromises = [];
-        querySnapshot.forEach(docSnapshot => {
-            deletePromises.push(deleteDoc(doc(db, `artifacts/default-lecture-app/public/data/registrations`, docSnapshot.id)));
+        await addDoc(registrationsCollection, {
+            lectureId, day: parseInt(day), studentName: name, studentEmail: email, serie, curso, periodo,
+            registeredAt: serverTimestamp(), userId: user.uid
         });
+        displayMessage(uniqueIdPrefix, 'Inscrição realizada com sucesso!', 'green');
+        event.target.reset();
+        updateUIForAuthState(auth.currentUser);
+    } catch (err) {
+        if (err !== "duplicado") displayMessage(uniqueIdPrefix, 'Erro ao registrar. Tente novamente.', 'red');
+    } finally {
+        button.disabled = false; button.textContent = 'Confirmar Inscrição';
+    }
+}
 
-        // 3. Executar todas as exclusões
+// --- EXCLUIR INSCRIÇÕES ---
+async function handleDeleteMyRegistrations() {
+    // Esta função continua a mesma, excluindo TODAS as inscrições do usuário em todos os dias.
+    const user = auth.currentUser;
+    if (!user || !user.email) { alert("Você precisa estar logado para excluir suas inscrições."); return; }
+    if (!confirm("Tem certeza que deseja excluir TODAS as suas inscrições em todos os dias? Esta ação não pode ser desfeita.")) { return; }
+    this.disabled = true; this.textContent = "Excluindo...";
+    try {
+        const q = query(registrationsCollection, where("studentEmail", "==", user.email));
+        const querySnapshot = await getDocs(q);
+        if (querySnapshot.empty) { alert("Nenhuma inscrição encontrada para o seu e-mail."); return; }
+        const deletePromises = querySnapshot.docs.map(docSnapshot => deleteDoc(doc(db, `artifacts/default-lecture-app/public/data/registrations`, docSnapshot.id)));
         await Promise.all(deletePromises);
-
         alert(`Sucesso! ${deletePromises.length} inscrição(ões) foram excluídas.`);
-
     } catch (error) {
         console.error("Erro ao excluir inscrições:", error);
         alert("Ocorreu um erro ao tentar excluir suas inscrições. Tente novamente.");
     } finally {
-        this.disabled = false;
-        this.textContent = "Excluir Minhas Inscrições";
+        this.disabled = false; this.textContent = "Excluir Minhas Inscrições";
     }
 }
 
 
-// --- MENSAGENS ---
-function displayMessage(lectureId, text, color) {
-    const el = document.getElementById(`message-${lectureId}`);
+// --- MENSAGENS (MODIFICADO) ---
+function displayMessage(uniqueIdPrefix, text, color) {
+    const el = document.getElementById(`message-${uniqueIdPrefix}`);
     const colors = { red: 'text-red-600', green: 'text-green-600', orange: 'text-orange-500' };
-    el.textContent = text; el.className = `mt-3 text-sm font-medium ${colors[color]||'text-gray-600'}`;
-    setTimeout(()=>{el.textContent='';}, 5000);
+    el.textContent = text;
+    el.className = `mt-3 text-sm font-medium ${colors[color] || 'text-gray-600'}`;
+    setTimeout(() => { el.textContent = ''; }, 5000);
 }
 
-// --- LISTAGEM E CONTAGEM EM TEMPO REAL ---
+// --- LISTAGEM E CONTAGEM EM TEMPO REAL (MODIFICADO) ---
 function listenToRegistrations() {
     onSnapshot(registrationsCollection, snapshot => {
         const counts = {}; const registrations = {};
-        lectures.forEach(l=>{ counts[l.id]=0; registrations[l.id]=[]; });
+        
+        // Inicializa as estruturas de contagem para cada dia e palestra
+        lecturesByDay.forEach(dayData => {
+            dayData.lectures.forEach(l => {
+                const uniqueIdPrefix = `dia${dayData.day}-${l.id}`;
+                counts[uniqueIdPrefix] = 0;
+                registrations[uniqueIdPrefix] = [];
+            });
+        });
 
-        snapshot.docs.forEach(doc=>{
+        snapshot.docs.forEach(doc => {
             const data = doc.data();
-            if (data.lectureId && counts.hasOwnProperty(data.lectureId)) {
-                counts[data.lectureId]++;
-                // MODIFICAÇÃO 1: Armazena um objeto com nome, série e curso
-                registrations[data.lectureId].push({
-                    name: data.studentName,
-                    serie: data.serie,
-                    curso: data.curso
-                });
+            const uniqueIdPrefix = `dia${data.day}-${data.lectureId}`;
+            if (counts.hasOwnProperty(uniqueIdPrefix)) {
+                counts[uniqueIdPrefix]++;
+                registrations[uniqueIdPrefix].push({ name: data.studentName, serie: data.serie, curso: data.curso });
             }
         });
 
-        lectures.forEach(l=>{
-            document.getElementById(`count-${l.id}`).textContent = counts[l.id];
-            const statusEl = document.getElementById(`status-${l.id}`);
-            const form = document.getElementById(`form-${l.id}`);
-            const button = form.querySelector('button[type="submit"]');
+        // Atualiza a UI para cada palestra em cada dia
+        lecturesByDay.forEach(dayData => {
+            dayData.lectures.forEach(l => {
+                const uniqueIdPrefix = `dia${dayData.day}-${l.id}`;
+                document.getElementById(`count-${uniqueIdPrefix}`).textContent = counts[uniqueIdPrefix];
+                
+                const statusEl = document.getElementById(`status-${uniqueIdPrefix}`);
+                const form = document.getElementById(`form-${uniqueIdPrefix}`);
+                const button = form.querySelector('button[type="submit"]');
 
-            if(counts[l.id] >= TOTAL_SPOTS){
-                statusEl.textContent='Vagas Esgotadas'; statusEl.className='mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-700';
-                form.querySelectorAll('input, button[type="submit"], select').forEach(i=>i.disabled=true); button.textContent='Esgotado';
-            } else {
-                statusEl.textContent='Vagas Disponíveis'; statusEl.className='mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-700';
-                form.querySelectorAll('input, button[type="submit"], select').forEach(i=>i.disabled=false); button.textContent='Confirmar Inscrição';
-            }
+                if (counts[uniqueIdPrefix] >= TOTAL_SPOTS) {
+                    statusEl.textContent = 'Vagas Esgotadas'; statusEl.className = 'mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-700';
+                    form.querySelectorAll('input, button[type="submit"], select').forEach(i => i.disabled = true); button.textContent = 'Esgotado';
+                } else {
+                    statusEl.textContent = 'Vagas Disponíveis'; statusEl.className = 'mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-700';
+                    form.querySelectorAll('input, button[type="submit"], select').forEach(i => i.disabled = false); button.textContent = 'Confirmar Inscrição';
+                }
 
-            const listUl = document.getElementById(`list-ul-${l.id}`);
-            const registrants = registrations[l.id];
-            // MODIFICAÇÃO 2: Gera a lista exibindo nome, série e curso
-            listUl.innerHTML = registrants.length > 0
-                ? registrants.map(r => `<li>${r.name} - ${r.serie}ª Série - ${r.curso}</li>`).join('')
-                : '<li>Ainda não há inscritos.</li>';
+                const listUl = document.getElementById(`list-ul-${uniqueIdPrefix}`);
+                const registrants = registrations[uniqueIdPrefix];
+                listUl.innerHTML = registrants.length > 0
+                    ? registrants.map(r => `<li>${r.name} - ${r.serie}ª Série - ${r.curso}</li>`).join('')
+                    : '<li>Ainda não há inscritos.</li>';
+            });
         });
-        updateUIForAuthState(auth.currentUser); // Garante que o estado dos formulários esteja correto após o login
+        updateUIForAuthState(auth.currentUser);
     });
 }
 
-// --- TOGGLE LISTA ---
-function toggleRegistrationsList(lectureId) {
-    const listContainer = document.getElementById(`registrations-list-${lectureId}`);
-    const button = document.querySelector(`.view-registrations-btn[data-lecture-id="${lectureId}"]`);
+// --- TOGGLE LISTA (MODIFICADO) ---
+function toggleRegistrationsList(uniqueIdPrefix) {
+    const listContainer = document.getElementById(`registrations-list-${uniqueIdPrefix}`);
+    const button = document.querySelector(`.view-registrations-btn[data-unique-id="${uniqueIdPrefix}"]`);
     const isHidden = listContainer.classList.toggle('hidden');
     button.textContent = isHidden ? 'Ver Inscritos' : 'Ocultar Inscritos';
+}
+
+// --- NOVO: LÓGICA DE TROCA DE ABAS ---
+function handleTabClick(event) {
+    if (!event.target.matches('.tab-btn')) return;
+
+    const selectedDay = event.target.dataset.day;
+
+    // Atualiza estilo dos botões
+    tabsContainer.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.day === selectedDay);
+    });
+
+    // Mostra/esconde os containers de conteúdo dos dias
+    lecturesContainer.querySelectorAll('[id^="day-content-"]').forEach(content => {
+        content.classList.toggle('hidden', content.id !== `day-content-${selectedDay}`);
+    });
 }
 
 // --- INICIALIZAÇÃO ---
@@ -336,9 +360,13 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLectures();
     listenToRegistrations();
     lecturesContainer.addEventListener('submit', handleRegistration);
-    lecturesContainer.addEventListener('click', e => { if(e.target.classList.contains('view-registrations-btn')) toggleRegistrationsList(e.target.dataset.lectureId); });
-    // Adiciona o evento de clique para o novo botão
+    lecturesContainer.addEventListener('click', e => {
+        if (e.target.classList.contains('view-registrations-btn')) {
+            toggleRegistrationsList(e.target.dataset.uniqueId);
+        }
+    });
     deleteMyRegistrationsButton.addEventListener('click', handleDeleteMyRegistrations);
+    tabsContainer.addEventListener('click', handleTabClick); // Adiciona listener para as abas
 });
 </script>
 </body>
