@@ -31,6 +31,9 @@
                 <p class="font-semibold text-gray-700" id="user-name"></p>
                 <p class="text-sm text-gray-500" id="user-email"></p>
             </div>
+            <button id="delete-my-registrations-button" class="hidden bg-red-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-red-700 transition duration-300 shadow-sm">
+                Excluir Minhas Inscrições
+            </button>
             <button id="auth-button" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-300 shadow-sm">
                 Login com Google
             </button>
@@ -50,25 +53,25 @@
 </div>
 
 <script type="module">
+// Importações do Firebase, adicionando doc e deleteDoc
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
 // --- CONFIGURAÇÃO FIREBASE ---
 const firebaseConfig = {
-    apiKey: "AIzaSyBMTY43MO0rDavnDnL4jhlUjmPu9E9kAgQ",
-    authDomain: "paletras-f96a6.firebaseapp.com",
-    projectId: "paletras-f96a6",
-    storageBucket: "paletras-f96a6.appspot.com",
-    messagingSenderId: "507510623293",
-    appId: "1:507510623293:web:97ca6da361cfcb6e48ee54"
+    apiKey: "AIzaSyD0rC3RYKVEutV4lg1UMehtavZmATEE3gk",
+    authDomain: "palestras-ac51e.firebaseapp.com",
+    projectId:  "palestras-ac51e",
+    storageBucket: "palestras-ac51e.appspot.com",
+    messagingSenderId: "961901054844",
+    appId: "1:961901054844:web:15118d30a8d2fbdac032f9"
 };
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
-// Coleção fixa para todos os dispositivos
 const registrationsCollection = collection(db, `artifacts/default-lecture-app/public/data/registrations`);
 
 const lectures = [
@@ -87,6 +90,7 @@ const userInfoDiv = document.getElementById('user-info');
 const userNameP = document.getElementById('user-name');
 const userEmailP = document.getElementById('user-email');
 const lecturesContainer = document.getElementById('lectures-container');
+const deleteMyRegistrationsButton = document.getElementById('delete-my-registrations-button');
 
 // --- AUTENTICAÇÃO ---
 onAuthStateChanged(auth, user => updateUIForAuthState(user));
@@ -96,12 +100,14 @@ function updateUIForAuthState(user) {
         userNameP.textContent = user.displayName || 'Usuário';
         userEmailP.textContent = user.email || '';
         userInfoDiv.classList.remove('hidden');
+        deleteMyRegistrationsButton.classList.remove('hidden'); // Mostra o botão de excluir
         authButton.textContent = 'Sair';
         authButton.onclick = () => signOut(auth);
         document.querySelectorAll('.student-email-input').forEach(i => i.value = user.email || '');
         document.querySelectorAll('.student-name-input').forEach(i => i.value = user.displayName || '');
     } else {
         userInfoDiv.classList.add('hidden');
+        deleteMyRegistrationsButton.classList.add('hidden'); // Esconde o botão de excluir
         authButton.textContent = 'Login com Google';
         authButton.onclick = () => signInWithPopup(auth, provider);
         document.querySelectorAll('.student-email-input').forEach(i => i.value = '');
@@ -135,6 +141,31 @@ function renderLectures() {
                         <div><input type="text" id="name-${lecture.id}" required placeholder="Seu nome completo" class="student-name-input w-full px-4 py-2 border rounded-lg"></div>
                         <div><input type="email" id="email-${lecture.id}" required placeholder="Seu melhor e-mail" class="student-email-input w-full px-4 py-2 border rounded-lg"></div>
                     </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <select id="serie-${lecture.id}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700">
+                                <option value="" disabled selected>Sua série</option>
+                                <option value="1">1ª Série</option>
+                                <option value="2">2ª Série</option>
+                                <option value="3">3ª Série</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="curso-${lecture.id}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700">
+                                <option value="" disabled selected>Seu curso</option>
+                                <option value="Administração de Empresas">Administração de Empresas</option>
+                                <option value="Informática para Internet">Informática para Internet</option>
+                                <option value="Desenvolvimento de Sistemas">Desenvolvimento de Sistemas</option>
+                            </select>
+                        </div>
+                        <div>
+                            <select id="periodo-${lecture.id}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700">
+                                <option value="" disabled selected>Seu período</option>
+                                <option value="Integral">Integral</option>
+                                <option value="Noturno">Noturno</option>
+                            </select>
+                        </div>
+                    </div>
                     <div class="flex flex-col sm:flex-row gap-3">
                         <button type="submit" class="w-full sm:w-auto bg-green-600 text-white font-semibold px-6 py-2 rounded-lg">Confirmar Inscrição</button>
                         <button type="button" class="view-registrations-btn w-full sm:w-auto bg-blue-500 text-white px-6 py-2 rounded-lg" data-lecture-id="${lecture.id}">Ver Inscritos</button>
@@ -162,34 +193,85 @@ async function handleRegistration(event) {
     const form = document.getElementById(`form-${lectureId}`);
     const name = document.getElementById(`name-${lectureId}`).value.trim();
     const email = document.getElementById(`email-${lectureId}`).value.trim().toLowerCase();
+    const serie = document.getElementById(`serie-${lectureId}`).value;
+    const curso = document.getElementById(`curso-${lectureId}`).value;
+    const periodo = document.getElementById(`periodo-${lectureId}`).value;
     const button = form.querySelector('button[type="submit"]');
 
-    if (!name || !email) { displayMessage(lectureId, 'Preencha nome e e-mail.', 'red'); return; }
-
+    if (!name || !email || !serie || !curso || !periodo) {
+        displayMessage(lectureId, 'Preencha todos os campos para se inscrever.', 'red');
+        return;
+    }
     button.disabled = true; button.textContent = 'Processando...';
-
     try {
         const q = query(registrationsCollection, where("lectureId", "==", lectureId), where("studentEmail", "==", email));
         const snapshot = await getDocs(q);
-        if (!snapshot.empty) { displayMessage(lectureId, 'E-mail já inscrito.', 'orange'); throw "duplicado"; }
+        if (!snapshot.empty) { displayMessage(lectureId, 'E-mail já inscrito nesta palestra.', 'orange'); throw "duplicado"; }
 
         await addDoc(registrationsCollection, {
-            lectureId, studentName: name, studentEmail: email, registeredAt: serverTimestamp(), userId: user.uid
+            lectureId, studentName: name, studentEmail: email, serie, curso, periodo,
+            registeredAt: serverTimestamp(), userId: user.uid
         });
-
         displayMessage(lectureId, 'Inscrição realizada com sucesso!', 'green');
         form.reset();
+        updateUIForAuthState(auth.currentUser); // Atualiza os campos de nome e e-mail
     } catch (err) {
         if (err !== "duplicado") displayMessage(lectureId, 'Erro ao registrar. Tente novamente.', 'red');
     } finally { button.disabled = false; button.textContent = 'Confirmar Inscrição'; }
 }
+
+// --- NOVA FUNÇÃO: EXCLUIR TODAS AS INSCRIÇÕES DO USUÁRIO ---
+async function handleDeleteMyRegistrations() {
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+        alert("Você precisa estar logado para excluir suas inscrições.");
+        return;
+    }
+
+    if (!confirm("Tem certeza que deseja excluir TODAS as suas inscrições? Esta ação não pode ser desfeita.")) {
+        return;
+    }
+
+    this.disabled = true;
+    this.textContent = "Excluindo...";
+
+    try {
+        // 1. Encontrar todas as inscrições com o e-mail do usuário
+        const q = query(registrationsCollection, where("studentEmail", "==", user.email));
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            alert("Nenhuma inscrição encontrada para o seu e-mail.");
+            return;
+        }
+
+        // 2. Criar uma promessa de exclusão para cada documento encontrado
+        const deletePromises = [];
+        querySnapshot.forEach(docSnapshot => {
+            deletePromises.push(deleteDoc(doc(db, `artifacts/default-lecture-app/public/data/registrations`, docSnapshot.id)));
+        });
+
+        // 3. Executar todas as exclusões
+        await Promise.all(deletePromises);
+
+        alert(`Sucesso! ${deletePromises.length} inscrição(ões) foram excluídas.`);
+
+    } catch (error) {
+        console.error("Erro ao excluir inscrições:", error);
+        alert("Ocorreu um erro ao tentar excluir suas inscrições. Tente novamente.");
+    } finally {
+        this.disabled = false;
+        this.textContent = "Excluir Minhas Inscrições";
+    }
+}
+
 
 // --- MENSAGENS ---
 function displayMessage(lectureId, text, color) {
     const el = document.getElementById(`message-${lectureId}`);
     const colors = { red: 'text-red-600', green: 'text-green-600', orange: 'text-orange-500' };
     el.textContent = text; el.className = `mt-3 text-sm font-medium ${colors[color]||'text-gray-600'}`;
-    setTimeout(()=>{el.textContent='';},5000);
+    setTimeout(()=>{el.textContent='';}, 5000);
 }
 
 // --- LISTAGEM E CONTAGEM EM TEMPO REAL ---
@@ -200,7 +282,10 @@ function listenToRegistrations() {
 
         snapshot.docs.forEach(doc=>{
             const data = doc.data();
-            counts[data.lectureId]++; registrations[data.lectureId].push(data.studentName);
+            if (data.lectureId && counts.hasOwnProperty(data.lectureId)) {
+                counts[data.lectureId]++;
+                registrations[data.lectureId].push(data.studentName);
+            }
         });
 
         lectures.forEach(l=>{
@@ -209,22 +294,24 @@ function listenToRegistrations() {
             const form = document.getElementById(`form-${l.id}`);
             const button = form.querySelector('button[type="submit"]');
 
-            if(counts[l.id]>=TOTAL_SPOTS){
+            if(counts[l.id] >= TOTAL_SPOTS){
                 statusEl.textContent='Vagas Esgotadas'; statusEl.className='mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-700';
-                form.querySelectorAll('input, button[type="submit"]').forEach(i=>i.disabled=true); button.textContent='Esgotado';
+                form.querySelectorAll('input, button[type="submit"], select').forEach(i=>i.disabled=true); button.textContent='Esgotado';
             } else {
                 statusEl.textContent='Vagas Disponíveis'; statusEl.className='mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-700';
-                form.querySelectorAll('input, button[type="submit"]').forEach(i=>i.disabled=false); button.textContent='Confirmar Inscrição';
+                form.querySelectorAll('input, button[type="submit"], select').forEach(i=>i.disabled=false); button.textContent='Confirmar Inscrição';
             }
 
             const listUl = document.getElementById(`list-ul-${l.id}`);
-            const names = registrations[l.id]; listUl.innerHTML = names.length>0 ? names.map(n=>`<li>${n}</li>`).join('') : '<li>Ainda não há inscritos.</li>';
+            const names = registrations[l.id];
+            listUl.innerHTML = names.length > 0 ? names.map(n=>`<li>${n}</li>`).join('') : '<li>Ainda não há inscritos.</li>';
         });
+        updateUIForAuthState(auth.currentUser); // Garante que o estado dos formulários esteja correto após o login
     });
 }
 
 // --- TOGGLE LISTA ---
-async function toggleRegistrationsList(lectureId) {
+function toggleRegistrationsList(lectureId) {
     const listContainer = document.getElementById(`registrations-list-${lectureId}`);
     const button = document.querySelector(`.view-registrations-btn[data-lecture-id="${lectureId}"]`);
     const isHidden = listContainer.classList.toggle('hidden');
@@ -236,7 +323,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderLectures();
     listenToRegistrations();
     lecturesContainer.addEventListener('submit', handleRegistration);
-    lecturesContainer.addEventListener('click', e=>{ if(e.target.classList.contains('view-registrations-btn')) toggleRegistrationsList(e.target.dataset.lectureId); });
+    lecturesContainer.addEventListener('click', e => { if(e.target.classList.contains('view-registrations-btn')) toggleRegistrationsList(e.target.dataset.lectureId); });
+    // Adiciona o evento de clique para o novo botão
+    deleteMyRegistrationsButton.addEventListener('click', handleDeleteMyRegistrations);
 });
 </script>
 </body>
