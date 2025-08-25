@@ -8,6 +8,10 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
     <style>
         body { font-family: 'Inter', sans-serif; }
         .loader {
@@ -19,355 +23,451 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        /* Estilos para a aba ativa e inativa */
-        .tab-btn {
+        
+        .tab-btn, .periodo-tab-btn {
             transition: all 0.3s ease;
         }
-        .tab-btn.active {
-            border-color: #3b82f6; /* blue-500 */
-            background-color: #3b82f6; /* blue-500 */
+        .tab-btn.active, .periodo-tab-btn.active {
+            border-color: #3b82f6;
+            background-color: #3b82f6;
             color: white;
         }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
-
-<div class="container mx-auto p-4 md:p-8 max-w-4xl">
-    <header class="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white p-6 rounded-xl shadow-md">
-        <h1 class="text-3xl font-bold text-gray-900 mb-4 sm:mb-0">Inscrições - Semana Acadêmica</h1>
-        <div id="auth-container" class="flex items-center space-x-4">
-            <div id="user-info" class="hidden text-right">
-                <p class="font-semibold text-gray-700" id="user-name"></p>
-                <p class="text-sm text-gray-500" id="user-email"></p>
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="flex flex-col sm:flex-row justify-between items-center mb-8 bg-white p-6 rounded-xl shadow-md">
+            <h1 class="text-3xl font-bold text-gray-900 mb-4 sm:mb-0">Inscrições - Semana Acadêmica</h1>
+            <div id="auth-container" class="flex items-center space-x-4">
+                <div id="user-info" class="hidden text-right">
+                    <p class="font-semibold text-gray-700" id="user-name"></p>
+                    <p class="text-sm text-gray-500" id="user-email"></p>
+                </div>
+                <button id="delete-my-registrations-button" class="hidden bg-red-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-red-700 transition duration-300 shadow-sm">
+                    Excluir Minhas Inscrições
+                </button>
+                <button id="auth-button" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-300 shadow-sm">
+                    Login com Google
+                </button>
             </div>
-            <button id="delete-my-registrations-button" class="hidden bg-red-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-red-700 transition duration-300 shadow-sm">
-                Excluir Minhas Inscrições
-            </button>
-            <button id="auth-button" class="bg-blue-600 text-white font-semibold px-6 py-2 rounded-lg hover:bg-blue-700 transition duration-300 shadow-sm">
-                Login com Google
-            </button>
-        </div>
-    </header>
+        </header>
 
-    <div id="tabs-container" class="mb-6 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
-        <button data-day="1" class="tab-btn active font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 1</button>
-        <button data-day="2" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 2</button>
-        <button data-day="3" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 3</button>
-        <button data-day="4" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">Dia 4</button>
+        <div id="tabs-container" class="mb-6 flex flex-wrap gap-2 border-b border-gray-200 pb-3">
+            <button data-day="1" class="tab-btn active font-semibold py-2 px-5 rounded-lg border-2 border-transparent">(08/09) Feira de Profissões</button>
+            <button data-day="2" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">(09/09) Palestras</button>
+            <button data-day="3" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">(11/09) Palestras</button>
+            <button data-day="4" class="tab-btn font-semibold py-2 px-5 rounded-lg border-2 border-transparent">(12/09) Oficinas</button>
+        </div>
+
+        <main id="lectures-by-day-container">
+            <div class="flex justify-center items-center h-40">
+                <div class="loader"></div>
+                <p class="ml-4 text-gray-600">Carregando palestras...</p>
+            </div>
+        </main>
+
+        <footer class="text-center mt-12 text-gray-500">
+            <p>&copy; 2025 Semana Acadêmica. Todos os direitos reservados.</p>
+        </footer>
     </div>
 
-    <main id="lectures-by-day-container">
-        <div class="flex justify-center items-center h-40">
-            <div class="loader"></div>
-            <p class="ml-4 text-gray-600">Carregando palestras...</p>
-        </div>
-    </main>
-
-    <footer class="text-center mt-12 text-gray-500">
-        <p>&copy; 2024 Semana Acadêmica. Todos os direitos reservados.</p>
-    </footer>
-</div>
-
-<script type="module">
-// Importações do Firebase
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-// --- CONFIGURAÇÃO FIREBASE ---
-const firebaseConfig = {
-    apiKey: "AIzaSyD0rC3RYKVEutV4lg1UMehtavZmATEE3gk",
-    authDomain: "palestras-ac51e.firebaseapp.com",
-    projectId:  "palestras-ac51e",
-    storageBucket: "palestras-ac51e.appspot.com",
-    messagingSenderId: "961901054844",
-    appId: "1:961901054844:web:15118d30a8d2fbdac032f9"
-};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
-
-const registrationsCollection = collection(db, `artifacts/default-lecture-app/public/data/registrations`);
-
-// --- NOVA ESTRUTURA DE DADOS PARA AS PALESTRAS ---
-const lectureTemplate = [
-    { id: 'medicina', title: 'Avanços Recentes em Medicina' },
-    { id: 'ciberseguranca', title: 'Segurança Cibernética no Mundo Moderno' },
-    { id: 'robotica', title: 'Robótica Aplicada à Engenharia' },
-    { id: 'ia', title: 'Inteligência Artificial e o Futuro do Trabalho' },
-    { id: 'marketing', title: 'Marketing Digital Pós-Pandemia' },
-    { id: 'financas', title: 'Finanças Pessoais e Investimentos para Jovens' }
-];
-
-const lecturesByDay = [
-    { day: 1, lectures: JSON.parse(JSON.stringify(lectureTemplate)) },
-    { day: 2, lectures: JSON.parse(JSON.stringify(lectureTemplate)) },
-    { day: 3, lectures: JSON.parse(JSON.stringify(lectureTemplate)) },
-    { day: 4, lectures: JSON.parse(JSON.stringify(lectureTemplate)) }
-];
-const TOTAL_SPOTS = 40;
-
-// --- ELEMENTOS DOM ---
-const authButton = document.getElementById('auth-button');
-const userInfoDiv = document.getElementById('user-info');
-const userNameP = document.getElementById('user-name');
-const userEmailP = document.getElementById('user-email');
-const lecturesContainer = document.getElementById('lectures-by-day-container');
-const deleteMyRegistrationsButton = document.getElementById('delete-my-registrations-button');
-const tabsContainer = document.getElementById('tabs-container');
-
-// --- AUTENTICAÇÃO ---
-onAuthStateChanged(auth, user => updateUIForAuthState(user));
-
-function updateUIForAuthState(user) {
-    if (user) {
-        userNameP.textContent = user.displayName || 'Usuário';
-        userEmailP.textContent = user.email || '';
-        userInfoDiv.classList.remove('hidden');
-        deleteMyRegistrationsButton.classList.remove('hidden');
-        authButton.textContent = 'Sair';
-        authButton.onclick = () => signOut(auth);
-        document.querySelectorAll('.student-email-input').forEach(i => i.value = user.email || '');
-        document.querySelectorAll('.student-name-input').forEach(i => i.value = user.displayName || '');
-    } else {
-        userInfoDiv.classList.add('hidden');
-        deleteMyRegistrationsButton.classList.add('hidden');
-        authButton.textContent = 'Login com Google';
-        authButton.onclick = () => signInWithPopup(auth, provider);
-        document.querySelectorAll('.student-email-input').forEach(i => i.value = '');
-        document.querySelectorAll('.student-name-input').forEach(i => i.value = '');
-    }
-}
-
-// --- RENDERIZAÇÃO DAS PALESTRAS (MODIFICADO) ---
-function renderLectures() {
-    lecturesContainer.innerHTML = '';
-    lecturesByDay.forEach(dayData => {
-        // Cria um container para cada dia
-        const dayContainer = document.createElement('div');
-        dayContainer.id = `day-content-${dayData.day}`;
-        dayContainer.className = 'space-y-6';
-        if (dayData.day !== 1) { // Esconde os outros dias por padrão
-            dayContainer.classList.add('hidden');
-        }
-
-        dayData.lectures.forEach(lecture => {
-            // IDs únicos para cada elemento, combinando dia e id da palestra
-            const uniqueIdPrefix = `dia${dayData.day}-${lecture.id}`;
-            const card = document.createElement('div');
-            card.className = 'bg-white p-6 rounded-xl shadow-md';
-            card.id = `card-${uniqueIdPrefix}`;
-            card.innerHTML = `
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
-                    <div>
-                        <h2 class="text-xl font-bold text-gray-800">${lecture.title}</h2>
-                        <p class="text-green-600 font-semibold mt-2">
-                            Vagas Preenchidas: <span id="count-${uniqueIdPrefix}">0</span> / ${TOTAL_SPOTS}
-                        </p>
-                    </div>
-                    <div id="status-${uniqueIdPrefix}" class="mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700">
-                        Aguardando...
-                    </div>
-                </div>
-                <div class="mt-4 border-t pt-4">
-                    <form id="form-${uniqueIdPrefix}" data-lecture-id="${lecture.id}" data-day="${dayData.day}" class="space-y-4">
-                        <p class="text-sm font-medium text-gray-600">Inscreva-se agora:</p>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div><input type="text" id="name-${uniqueIdPrefix}" required placeholder="Seu nome completo" class="student-name-input w-full px-4 py-2 border rounded-lg"></div>
-                            <div><input type="email" id="email-${uniqueIdPrefix}" required placeholder="Seu melhor e-mail" class="student-email-input w-full px-4 py-2 border rounded-lg"></div>
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                             <div><select id="serie-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Sua série</option><option value="1">1ª Série</option><option value="2">2ª Série</option><option value="3">3ª Série</option></select></div>
-                            <div><select id="curso-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Seu curso</option><option value="Administração de Empresas">Administração de Empresas</option><option value="Informática para Internet">Informática para Internet</option><option value="Desenvolvimento de Sistemas">Desenvolvimento de Sistemas</option></select></div>
-                            <div><select id="periodo-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Seu período</option><option value="Integral">Integral</option><option value="Noturno">Noturno</option></select></div>
-                        </div>
-                        <div class="flex flex-col sm:flex-row gap-3">
-                            <button type="submit" class="w-full sm:w-auto bg-green-600 text-white font-semibold px-6 py-2 rounded-lg">Confirmar Inscrição</button>
-                            <button type="button" class="view-registrations-btn w-full sm:w-auto bg-blue-500 text-white px-6 py-2 rounded-lg" data-unique-id="${uniqueIdPrefix}">Ver Inscritos</button>
-                        </div>
-                    </form>
-                    <div id="message-${uniqueIdPrefix}" class="mt-3 text-sm font-medium"></div>
-                    <div id="registrations-list-${uniqueIdPrefix}" class="hidden mt-4 p-4 bg-gray-50 rounded-lg border max-h-60 overflow-y-auto">
-                        <h4 class="font-bold mb-2 text-gray-800">Inscritos:</h4>
-                        <ul id="list-ul-${uniqueIdPrefix}" class="list-disc list-inside text-gray-700 space-y-1"></ul>
-                    </div>
-                </div>
-            `;
-            dayContainer.appendChild(card);
-        });
-        lecturesContainer.appendChild(dayContainer);
-    });
-    updateUIForAuthState(auth.currentUser);
-}
-
-// --- INSCRIÇÃO (MODIFICADO) ---
-async function handleRegistration(event) {
-    event.preventDefault();
-    const user = auth.currentUser;
-    if (!user) { displayMessageById(event.target.id, 'Faça login com Google antes.', 'red'); return; }
-
-    const { lectureId, day } = event.target.dataset;
-    const uniqueIdPrefix = `dia${day}-${lectureId}`;
-    
-    const name = document.getElementById(`name-${uniqueIdPrefix}`).value.trim();
-    const email = document.getElementById(`email-${uniqueIdPrefix}`).value.trim().toLowerCase();
-    const serie = document.getElementById(`serie-${uniqueIdPrefix}`).value;
-    const curso = document.getElementById(`curso-${uniqueIdPrefix}`).value;
-    const periodo = document.getElementById(`periodo-${uniqueIdPrefix}`).value;
-    const button = event.target.querySelector('button[type="submit"]');
-
-    if (!name || !email || !serie || !curso || !periodo) {
-        displayMessage(uniqueIdPrefix, 'Preencha todos os campos para se inscrever.', 'red');
-        return;
-    }
-    button.disabled = true; button.textContent = 'Processando...';
-    try {
-        // ALTERAÇÃO: A consulta agora verifica se o e-mail já está inscrito em qualquer palestra NESTE DIA.
-        const q = query(registrationsCollection, where("studentEmail", "==", email), where("day", "==", parseInt(day)));
-        const snapshot = await getDocs(q);
-
-        if (!snapshot.empty) {
-            displayMessage(uniqueIdPrefix, 'Você já está inscrito em uma palestra para este dia.', 'orange');
-            throw "duplicado";
-        }
-
-        await addDoc(registrationsCollection, {
-            lectureId, day: parseInt(day), studentName: name, studentEmail: email, serie, curso, periodo,
-            registeredAt: serverTimestamp(), userId: user.uid
-        });
-        displayMessage(uniqueIdPrefix, 'Inscrição realizada com sucesso!', 'green');
-        event.target.reset();
-        updateUIForAuthState(auth.currentUser);
-    } catch (err) {
-        if (err !== "duplicado") displayMessage(uniqueIdPrefix, 'Erro ao registrar. Tente novamente.', 'red');
-    } finally {
-        button.disabled = false; button.textContent = 'Confirmar Inscrição';
-    }
-}
-
-// --- EXCLUIR INSCRIÇÕES ---
-async function handleDeleteMyRegistrations() {
-    // Esta função continua a mesma, excluindo TODAS as inscrições do usuário em todos os dias.
-    const user = auth.currentUser;
-    if (!user || !user.email) { alert("Você precisa estar logado para excluir suas inscrições."); return; }
-    if (!confirm("Tem certeza que deseja excluir TODAS as suas inscrições em todos os dias? Esta ação não pode ser desfeita.")) { return; }
-    this.disabled = true; this.textContent = "Excluindo...";
-    try {
-        const q = query(registrationsCollection, where("studentEmail", "==", user.email));
-        const querySnapshot = await getDocs(q);
-        if (querySnapshot.empty) { alert("Nenhuma inscrição encontrada para o seu e-mail."); return; }
-        const deletePromises = querySnapshot.docs.map(docSnapshot => deleteDoc(doc(db, `artifacts/default-lecture-app/public/data/registrations`, docSnapshot.id)));
-        await Promise.all(deletePromises);
-        alert(`Sucesso! ${deletePromises.length} inscrição(ões) foram excluídas.`);
-    } catch (error) {
-        console.error("Erro ao excluir inscrições:", error);
-        alert("Ocorreu um erro ao tentar excluir suas inscrições. Tente novamente.");
-    } finally {
-        this.disabled = false; this.textContent = "Excluir Minhas Inscrições";
-    }
-}
-
-
-// --- MENSAGENS (MODIFICADO) ---
-function displayMessage(uniqueIdPrefix, text, color) {
-    const el = document.getElementById(`message-${uniqueIdPrefix}`);
-    const colors = { red: 'text-red-600', green: 'text-green-600', orange: 'text-orange-500' };
-    el.textContent = text;
-    el.className = `mt-3 text-sm font-medium ${colors[color] || 'text-gray-600'}`;
-    setTimeout(() => { el.textContent = ''; }, 5000);
-}
-
-// --- LISTAGEM E CONTAGEM EM TEMPO REAL (MODIFICADO) ---
-function listenToRegistrations() {
-    onSnapshot(registrationsCollection, snapshot => {
-        const counts = {}; const registrations = {};
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, where, getDocs, onSnapshot, serverTimestamp, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // Inicializa as estruturas de contagem para cada dia e palestra
-        lecturesByDay.forEach(dayData => {
-            dayData.lectures.forEach(l => {
-                const uniqueIdPrefix = `dia${dayData.day}-${l.id}`;
-                counts[uniqueIdPrefix] = 0;
-                registrations[uniqueIdPrefix] = [];
-            });
-        });
+        const firebaseConfig = {
+            apiKey: "AIzaSyD0rC3RYKVEutV4lg1UMehtavZmATEE3gk",
+            authDomain: "palestras-ac51e.firebaseapp.com",
+            projectId:  "palestras-ac51e",
+            storageBucket: "palestras-ac51e.appspot.com",
+            messagingSenderId: "961901054844",
+            appId: "1:961901054844:web:15118d30a8d2fbdac032f9"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const provider = new GoogleAuthProvider();
+        const registrationsCollection = collection(db, `artifacts/default-lecture-app/public/data/registrations`);
 
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            const uniqueIdPrefix = `dia${data.day}-${data.lectureId}`;
-            if (counts.hasOwnProperty(uniqueIdPrefix)) {
-                counts[uniqueIdPrefix]++;
-                registrations[uniqueIdPrefix].push({ name: data.studentName, serie: data.serie, curso: data.curso });
+        const lecturesByDay = [
+            {
+                day: 1,
+                lectures: [
+                    { id: 'medicina-dia1', title: 'Medicina', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala A<br><strong>Palestrante:</strong> Wagner Moneda Telini' },
+                    { id: 'psicologia-dia1', title: 'Psicologia', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala B<br><strong>Palestrante:</strong> Carol Hamparian' },
+                    { id: 'Direito-dia1', title: 'Direito', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala C<br><strong>Palestrante:</strong> Érica Molina Rubim' },
+                    { id: 'Com-social-dia1', title: 'Comunicação social', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 1<br><strong>Palestrante:</strong> Vanessa de Castro' },
+                    { id: 'Agronomia-dia1', title: 'Agronomia', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 2<br><strong>Palestrante:</strong> Mariane Barbará' },
+                    { id: 'Eng-civil-dia1', title: 'Engenharia civil', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 3<br><strong>Palestrante:</strong> Angélica Paiva Ramos' },
+                    { id: 'Psicologia-noturno-dia1', title: 'Psicologia', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala A<br><strong>Palestrante:</strong> Marina e Natália' },
+                    { id: 'Direito-noturno-dia1', title: 'Direito', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 1<br><strong>Palestrante:</strong> Marcelo Leal da Silva' },
+                    { id: 'Agronomia-noturno-dia1', title: 'Agronomia', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 2<br><strong>Palestrante:</strong> Mariane Barbará' },
+                    { id: 'Eng-civil-noturno-dia1', title: 'Engenharia civil', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 3<br><strong>Palestrante:</strong> César Fernandes' },
+                ]
+            },
+            {
+                day: 2,
+                lectures: [
+                    { id: 'motivacional-dia2', title: 'Motivacional - A estrada até aqui', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala A<br><strong>Palestrante:</strong> Bruno Scriboni' },
+                    { id: 'gestao-dia2', title: 'Gestão', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala B<br><strong>Palestrante:</strong> Rafael Gregui' },
+                    { id: 'inf-e-com-dia2', title: 'Inf. e Com.', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala C<br><strong>Palestrante:</strong> Claudio Juny Figueiredo' },
+                    { id: 'saude-dia2', title: 'Saúde', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 1<br><strong>Palestrante:</strong> Jaqueline Leopoldo' },
+                    { id: 'seguranca-dia2', title: 'Primeiros Socorros', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 2<br><strong>Palestrante:</strong> Tenente Brito' },
+                    { id: 'artes-dia2', title: 'Artes', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 3<br><strong>Palestrante:</strong> .....' },
+                    { id: 'gestao-noturno-dia2', title: 'Gestão', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala A<br><strong>Palestrante:</strong> Denise Martin' },
+                    { id: 'Inf-e-com-noturno-dia2', title: 'Arquiteto de software', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 1<br><strong>Palestrante:</strong> Raul Mariano' },
+                    { id: 'Motivacional-noturno-dia2', title: 'Motivacional', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 2<br><strong>Palestrante:</strong> Claudio Juny Figueiredo' },
+                    { id: 'esporte-noturno-dia2', title: 'Esporte', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 3<br><strong>Palestrante:</strong> ....' },
+                ]
+            },
+            {
+                day: 3,
+                lectures: [
+                    { id: 'motivacional-dia3', title: 'Motivacional', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala A<br><strong>Palestrante:</strong> .....' },
+                    { id: 'gestao-dia3', title: 'Gestão', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala B<br><strong>Palestrante:</strong> .....' },
+                    { id: 'inf-e-com-dia3', title: 'Inf. e Com.', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala C<br><strong>Palestrante:</strong> .....' },
+                    { id: 'saude-dia3', title: 'Saúde', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 1<br><strong>Palestrante:</strong> Viviani Buzzo' },
+                    { id: 'esporte-dia3', title: 'Esportes', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 2<br><strong>Palestrante:</strong> ..... ' },
+                    { id: 'artes-dia3', title: 'Artes', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala 3<br><strong>Palestrante:</strong> .....' },
+                    { id: 'gestao-noturno-dia3', title: 'Como administrar seu próprio negócio', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala A<br><strong>Palestrante:</strong> Leandro Poçam' },
+                    { id: 'Inf-e-com-noturno-dia3', title: 'Inf. e Com.', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 1<br><strong>Palestrante:</strong> .....' },
+                    { id: 'seguranca-noturno-dia3', title: 'Primeiros Socorros', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 2<br><strong>Palestrante:</strong>Tenente Brito' },
+                    { id: 'artes-noturno-dia3', title: 'artes', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 3<br><strong>Palestrante:</strong> .....' },
+                ]
+            },
+            {
+                day: 4,
+                lectures: [
+                    { id: 'GD-dia4', title: 'Game Designer', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala A<br><strong>Palestrantes:</strong> Daniel, Dherick e Guilherme Mainardi' },
+                    { id: 'md-dia4', title: 'Marketing Digital', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala B<br><strong>Palestrantes:</strong> Gabriel e Nathalia' },
+					{ id: 'Autoimagem-dia4', title: 'Autoimagem no ambiente de trabalho', periodo: 'Integral', description: '<strong>Horário:</strong> 10:30<br><strong>Local:</strong> Sala C<br><strong>Palestrante:</strong>Anne Marrye, Maria Eduarda' },
+					{ id: 'Oratoria-dia4', title: 'Oratória e Apresentação', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala A<br><strong>Palestrante:</strong> Lorena ' },
+					{ id: 'E-commerce-dia4', title: 'E-commerce', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 1<br><strong>Palestrante:</strong> Nahany ' },
+					{ id: 'Power BI-dia4', title: 'Power BI', periodo: 'Noturno', description: '<strong>Horário:</strong> 19:30<br><strong>Local:</strong> Sala 2<br><strong>Palestrante:</strong> Prof. Jefferson ' },
+                ]	
+
+            }		
+        ];
+        
+        const TOTAL_SPOTS = 40;
+        let allRegistrations = {};
+
+        const authButton = document.getElementById('auth-button');
+        const userInfoDiv = document.getElementById('user-info');
+        const userNameP = document.getElementById('user-name');
+        const userEmailP = document.getElementById('user-email');
+        const lecturesContainer = document.getElementById('lectures-by-day-container');
+        const deleteMyRegistrationsButton = document.getElementById('delete-my-registrations-button');
+        const tabsContainer = document.getElementById('tabs-container');
+
+        onAuthStateChanged(auth, user => updateUIForAuthState(user));
+
+        function updateUIForAuthState(user) {
+            if (user) {
+                userNameP.textContent = user.displayName || 'Usuário';
+                userEmailP.textContent = user.email || '';
+                userInfoDiv.classList.remove('hidden');
+                deleteMyRegistrationsButton.classList.remove('hidden');
+                authButton.textContent = 'Sair';
+                authButton.onclick = () => signOut(auth);
+                document.querySelectorAll('.student-email-input').forEach(i => i.value = user.email || '');
+                document.querySelectorAll('.student-name-input').forEach(i => i.value = user.displayName || '');
+            } else {
+                userInfoDiv.classList.add('hidden');
+                deleteMyRegistrationsButton.classList.add('hidden');
+                authButton.textContent = 'Login com Google';
+                authButton.onclick = () => signInWithPopup(auth, provider);
+                document.querySelectorAll('.student-email-input').forEach(i => i.value = '');
+                document.querySelectorAll('.student-name-input').forEach(i => i.value = '');
             }
-        });
-
-        // Atualiza a UI para cada palestra em cada dia
-        lecturesByDay.forEach(dayData => {
-            dayData.lectures.forEach(l => {
-                const uniqueIdPrefix = `dia${dayData.day}-${l.id}`;
-                document.getElementById(`count-${uniqueIdPrefix}`).textContent = counts[uniqueIdPrefix];
-                
-                const statusEl = document.getElementById(`status-${uniqueIdPrefix}`);
-                const form = document.getElementById(`form-${uniqueIdPrefix}`);
-                const button = form.querySelector('button[type="submit"]');
-
-                if (counts[uniqueIdPrefix] >= TOTAL_SPOTS) {
-                    statusEl.textContent = 'Vagas Esgotadas'; statusEl.className = 'mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-700';
-                    form.querySelectorAll('input, button[type="submit"], select').forEach(i => i.disabled = true); button.textContent = 'Esgotado';
-                } else {
-                    statusEl.textContent = 'Vagas Disponíveis'; statusEl.className = 'mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-700';
-                    form.querySelectorAll('input, button[type="submit"], select').forEach(i => i.disabled = false); button.textContent = 'Confirmar Inscrição';
-                }
-
-                const listUl = document.getElementById(`list-ul-${uniqueIdPrefix}`);
-                const registrants = registrations[uniqueIdPrefix];
-                listUl.innerHTML = registrants.length > 0
-                    ? registrants.map(r => `<li>${r.name} - ${r.serie}ª Série - ${r.curso}</li>`).join('')
-                    : '<li>Ainda não há inscritos.</li>';
-            });
-        });
-        updateUIForAuthState(auth.currentUser);
-    });
-}
-
-// --- TOGGLE LISTA (MODIFICADO) ---
-function toggleRegistrationsList(uniqueIdPrefix) {
-    const listContainer = document.getElementById(`registrations-list-${uniqueIdPrefix}`);
-    const button = document.querySelector(`.view-registrations-btn[data-unique-id="${uniqueIdPrefix}"]`);
-    const isHidden = listContainer.classList.toggle('hidden');
-    button.textContent = isHidden ? 'Ver Inscritos' : 'Ocultar Inscritos';
-}
-
-// --- NOVO: LÓGICA DE TROCA DE ABAS ---
-function handleTabClick(event) {
-    if (!event.target.matches('.tab-btn')) return;
-
-    const selectedDay = event.target.dataset.day;
-
-    // Atualiza estilo dos botões
-    tabsContainer.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.day === selectedDay);
-    });
-
-    // Mostra/esconde os containers de conteúdo dos dias
-    lecturesContainer.querySelectorAll('[id^="day-content-"]').forEach(content => {
-        content.classList.toggle('hidden', content.id !== `day-content-${selectedDay}`);
-    });
-}
-
-// --- INICIALIZAÇÃO ---
-document.addEventListener('DOMContentLoaded', () => {
-    renderLectures();
-    listenToRegistrations();
-    lecturesContainer.addEventListener('submit', handleRegistration);
-    lecturesContainer.addEventListener('click', e => {
-        if (e.target.classList.contains('view-registrations-btn')) {
-            toggleRegistrationsList(e.target.dataset.uniqueId);
         }
-    });
-    deleteMyRegistrationsButton.addEventListener('click', handleDeleteMyRegistrations);
-    tabsContainer.addEventListener('click', handleTabClick); // Adiciona listener para as abas
-});
-</script>
+
+        function renderLectures() {
+            lecturesContainer.innerHTML = '';
+            lecturesByDay.forEach(dayData => {
+                const dayContainer = document.createElement('div');
+                dayContainer.id = `day-content-${dayData.day}`;
+                dayContainer.className = 'space-y-6';
+                if (dayData.day !== 1) { dayContainer.classList.add('hidden'); }
+
+                if (dayData.lectures.length === 0) {
+                    dayContainer.innerHTML = `<div class="bg-white p-6 rounded-xl shadow-md text-center text-gray-500">Nenhuma palestra programada para este dia.</div>`;
+                } else {
+                    const periodos = [...new Set(dayData.lectures.map(l => l.periodo))];
+                    let periodoTabsHTML = '';
+                    if (periodos.length > 0) {
+                        periodoTabsHTML = `<div class="periodo-tabs-container mb-4 flex flex-wrap items-center gap-2" data-day="${dayData.day}"><span class="text-sm font-semibold mr-2">Filtrar por período:</span>${periodos.map(p => `<button data-periodo="${p}" class="periodo-tab-btn text-sm font-semibold py-1 px-3 rounded-lg border-2 border-transparent">${p}</button>`).join('')}</div>`;
+                    }
+                    dayContainer.innerHTML = periodoTabsHTML;
+
+                    dayData.lectures.forEach(lecture => {
+                        const uniqueIdPrefix = `dia${dayData.day}-${lecture.id}`;
+                        const card = document.createElement('div');
+                        card.className = 'lecture-card bg-white p-6 rounded-xl shadow-md';
+                        card.id = `card-${uniqueIdPrefix}`;
+                        card.dataset.periodo = lecture.periodo;
+
+                        card.innerHTML = `
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                                <div>
+                                    <div class="flex items-center gap-3">
+                                        <h2 class="text-xl font-bold text-gray-800">${lecture.title}</h2>
+                                        <span class="text-xs font-bold py-1 px-2.5 rounded-full ${lecture.periodo === 'Integral' ? 'bg-blue-100 text-blue-800' : 'bg-indigo-100 text-indigo-800'}">${lecture.periodo}</span>
+                                    </div>
+                                    <div class="mt-2">
+                                        <button type="button" class="text-sm text-blue-600 hover:underline focus:outline-none toggle-description-btn" data-target-id="desc-${uniqueIdPrefix}">Ver Detalhes</button>
+                                        <div id="desc-${uniqueIdPrefix}" class="hidden mt-2 text-sm text-gray-600 pr-4"><div class="p-3 bg-gray-50 rounded-lg border">${lecture.description}</div></div>
+                                    </div>
+                                    <p class="text-green-600 font-semibold mt-2">Vagas Preenchidas: <span id="count-${uniqueIdPrefix}">0</span> / ${TOTAL_SPOTS}</p>
+                                </div>
+                                <div id="status-${uniqueIdPrefix}" class="mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-gray-200 text-gray-700">Aguardando...</div>
+                            </div>
+                            <div class="mt-4 border-t pt-4">
+                                <form id="form-${uniqueIdPrefix}" data-lecture-id="${lecture.id}" data-day="${dayData.day}" class="space-y-4">
+                                    <p class="text-sm font-medium text-gray-600">Inscreva-se agora:</p>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div><input type="text" id="name-${uniqueIdPrefix}" required placeholder="Seu nome completo" class="student-name-input w-full px-4 py-2 border rounded-lg"></div>
+                                        <div><input type="email" id="email-${uniqueIdPrefix}" required placeholder="Seu melhor e-mail" class="student-email-input w-full px-4 py-2 border rounded-lg"></div>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div><select id="serie-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Sua série</option><option value="1">1ª Série</option><option value="2">2ª Série</option><option value="3">3ª Série</option></select></div>
+                                        <div><select id="curso-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Seu curso</option><option value="Administração de Empresas">Administração de Empresas</option><option value="Informática para Internet">Informática para Internet</option><option value="Desenvolvimento de Sistemas">Desenvolvimento de Sistemas</option><option value="Recursos Humanos">Recursos Humanos</option></select></div>
+                                        <div><select id="periodo-${uniqueIdPrefix}" required class="w-full px-4 py-2 border rounded-lg bg-white text-gray-700"><option value="" disabled selected>Seu período</option><option value="Integral">Integral</option><option value="Noturno">Noturno</option></select></div>
+                                    </div>
+                                    <div class="flex flex-col sm:flex-row gap-3">
+                                        <button type="submit" class="w-full sm:w-auto bg-green-600 text-white font-semibold px-6 py-2 rounded-lg">Confirmar Inscrição</button>
+                                        <button type="button" class="view-registrations-btn w-full sm:w-auto bg-blue-500 text-white px-6 py-2 rounded-lg" data-unique-id="${uniqueIdPrefix}">Ver Inscritos</button>
+                                        <button type="button" class="download-pdf-btn w-full sm:w-auto bg-gray-600 text-white font-semibold px-6 py-2 rounded-lg" data-unique-id="${uniqueIdPrefix}">Baixar PDF</button>
+                                    </div>
+                                </form>
+                                <div id="message-${uniqueIdPrefix}" class="mt-3 text-sm font-medium"></div>
+                                <div id="registrations-list-${uniqueIdPrefix}" class="hidden mt-4 p-4 bg-gray-50 rounded-lg border max-h-60 overflow-y-auto">
+                                    <h4 class="font-bold mb-2 text-gray-800">Inscritos:</h4>
+                                    <ul id="list-ul-${uniqueIdPrefix}" class="list-disc list-inside text-gray-700 space-y-1"></ul>
+                                </div>
+                            </div>`;
+                        dayContainer.appendChild(card);
+                    });
+                }
+                lecturesContainer.appendChild(dayContainer);
+            });
+            updateUIForAuthState(auth.currentUser);
+        }
+
+        function handleTabClick(event) {
+            if (!event.target.matches('.tab-btn')) return;
+            const selectedDay = event.target.dataset.day;
+            tabsContainer.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.day === selectedDay));
+            lecturesContainer.querySelectorAll('[id^="day-content-"]').forEach(content => content.classList.toggle('hidden', content.id !== `day-content-${selectedDay}`));
+        }
+
+        function handlePeriodoTabClick(event) {
+            const button = event.target.closest('.periodo-tab-btn');
+            if (!button) return;
+            const selectedPeriodo = button.dataset.periodo;
+            const day = button.parentElement.dataset.day;
+            const dayContent = document.getElementById(`day-content-${day}`);
+            dayContent.querySelectorAll('.periodo-tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.periodo === selectedPeriodo));
+            dayContent.querySelectorAll('.lecture-card').forEach(card => card.classList.toggle('hidden', card.dataset.periodo !== selectedPeriodo));
+        }
+
+        async function handleRegistration(event) {
+            event.preventDefault();
+            const user = auth.currentUser;
+            if (!user) { displayMessage(event.target.id.replace('form-',''), 'Faça login com Google antes.', 'red'); return; }
+            const { lectureId, day } = event.target.dataset;
+            const uniqueIdPrefix = `dia${day}-${lectureId}`;
+            const name = document.getElementById(`name-${uniqueIdPrefix}`).value.trim();
+            const email = document.getElementById(`email-${uniqueIdPrefix}`).value.trim().toLowerCase();
+            const serie = document.getElementById(`serie-${uniqueIdPrefix}`).value;
+            const curso = document.getElementById(`curso-${uniqueIdPrefix}`).value;
+            const periodo = document.getElementById(`periodo-${uniqueIdPrefix}`).value;
+            const button = event.target.querySelector('button[type="submit"]');
+            const palestraInfo = lecturesByDay.find(d => d.day === parseInt(day))?.lectures.find(l => l.id === lectureId);
+            if (palestraInfo && palestraInfo.periodo !== periodo) {
+                displayMessage(uniqueIdPrefix, `Inscrição não permitida. Seu período (${periodo}) é diferente do período da palestra (${palestraInfo.periodo}).`, 'red');
+                return;
+            }
+            if (!name || !email || !serie || !curso || !periodo) {
+                displayMessage(uniqueIdPrefix, 'Preencha todos os campos para se inscrever.', 'red');
+                return;
+            }
+            button.disabled = true; button.textContent = 'Processando...';
+            try {
+                const q = query(registrationsCollection, where("studentEmail", "==", email), where("day", "==", parseInt(day)));
+                const snapshot = await getDocs(q);
+                if (!snapshot.empty) {
+                    displayMessage(uniqueIdPrefix, 'Você já está inscrito em uma atividade para este dia.', 'orange');
+                    throw "duplicado";
+                }
+                await addDoc(registrationsCollection, { lectureId, day: parseInt(day), studentName: name, studentEmail: email, serie, curso, periodo, registeredAt: serverTimestamp(), userId: user.uid });
+                displayMessage(uniqueIdPrefix, 'Inscrição realizada com sucesso!', 'green');
+                event.target.reset();
+                updateUIForAuthState(auth.currentUser);
+            } catch (err) {
+                if (err !== "duplicado") displayMessage(uniqueIdPrefix, 'Erro ao registrar. Tente novamente.', 'red');
+            } finally {
+                button.disabled = false; button.textContent = 'Confirmar Inscrição';
+            }
+        }
+
+        async function handleDeleteMyRegistrations() {
+            const user = auth.currentUser;
+            if (!user || !user.email) { alert("Você precisa estar logado para excluir suas inscrições."); return; }
+            if (!confirm("Tem certeza que deseja excluir TODAS as suas inscrições em todos os dias? Esta ação não pode ser desfeita.")) { return; }
+            this.disabled = true; this.textContent = "Excluindo...";
+            try {
+                const q = query(registrationsCollection, where("studentEmail", "==", user.email));
+                const querySnapshot = await getDocs(q);
+                if (querySnapshot.empty) { alert("Nenhuma inscrição encontrada para o seu e-mail."); return; }
+                const deletePromises = querySnapshot.docs.map(docSnapshot => deleteDoc(doc(db, `artifacts/default-lecture-app/public/data/registrations`, docSnapshot.id)));
+                await Promise.all(deletePromises);
+                alert(`Sucesso! ${deletePromises.length} inscrição(ões) foram excluídas.`);
+            } catch (error) {
+                console.error("Erro ao excluir inscrições:", error);
+                alert("Ocorreu um erro ao tentar excluir suas inscrições. Tente novamente.");
+            } finally {
+                this.disabled = false; this.textContent = "Excluir Minhas Inscrições";
+            }
+        }
+
+        function displayMessage(uniqueIdPrefix, text, color) {
+            const el = document.getElementById(`message-${uniqueIdPrefix}`);
+            const colors = { red: 'text-red-600', green: 'text-green-600', orange: 'text-orange-500' };
+            el.textContent = text;
+            el.className = `mt-3 text-sm font-medium ${colors[color] || 'text-gray-600'}`;
+            setTimeout(() => { el.textContent = ''; }, 5000);
+        }
+
+        function listenToRegistrations() {
+            onSnapshot(registrationsCollection, snapshot => {
+                const counts = {}; const registrations = {};
+                lecturesByDay.forEach(dayData => dayData.lectures.forEach(l => {
+                    const uniqueIdPrefix = `dia${dayData.day}-${l.id}`;
+                    counts[uniqueIdPrefix] = 0;
+                    registrations[uniqueIdPrefix] = [];
+                }));
+
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    const uniqueIdPrefix = `dia${data.day}-${data.lectureId}`;
+                    if (counts.hasOwnProperty(uniqueIdPrefix)) {
+                        counts[uniqueIdPrefix]++;
+                        registrations[uniqueIdPrefix].push({ name: data.studentName, serie: data.serie, curso: data.curso, periodo: data.periodo });
+                    }
+                });
+                
+                allRegistrations = registrations;
+
+                lecturesByDay.forEach(dayData => dayData.lectures.forEach(l => {
+                    const uniqueIdPrefix = `dia${dayData.day}-${l.id}`;
+                    const countEl = document.getElementById(`count-${uniqueIdPrefix}`);
+                    if (countEl) {
+                        countEl.textContent = counts[uniqueIdPrefix];
+                        const statusEl = document.getElementById(`status-${uniqueIdPrefix}`);
+                        const form = document.getElementById(`form-${uniqueIdPrefix}`);
+                        const button = form.querySelector('button[type="submit"]');
+                        if (counts[uniqueIdPrefix] >= TOTAL_SPOTS) {
+                            statusEl.textContent = 'Vagas Esgotadas'; statusEl.className = 'mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-red-100 text-red-700';
+                            form.querySelectorAll('input, button[type="submit"], select').forEach(i => i.disabled = true); button.textContent = 'Esgotado';
+                        } else {
+                            statusEl.textContent = 'Vagas Disponíveis'; statusEl.className = 'mt-4 md:mt-0 px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-700';
+                            form.querySelectorAll('input, button[type="submit"], select').forEach(i => i.disabled = false); button.textContent = 'Confirmar Inscrição';
+                        }
+                        const listUl = document.getElementById(`list-ul-${uniqueIdPrefix}`);
+                        const registrants = registrations[uniqueIdPrefix];
+
+                        registrants.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+                        listUl.innerHTML = registrants.length > 0 ? registrants.map(r => `<li>${r.name} - ${r.serie}ª Série - ${r.curso} (${r.periodo})</li>`).join('') : '<li>Ainda não há inscritos.</li>';
+                    }
+                }));
+                updateUIForAuthState(auth.currentUser);
+            });
+        }
+
+        function toggleRegistrationsList(uniqueIdPrefix) {
+            const listContainer = document.getElementById(`registrations-list-${uniqueIdPrefix}`);
+            const button = document.querySelector(`.view-registrations-btn[data-unique-id="${uniqueIdPrefix}"]`);
+            const isHidden = listContainer.classList.toggle('hidden');
+            button.textContent = isHidden ? 'Ver Inscritos' : 'Ocultar Inscritos';
+        }
+
+        function handleDownloadPdf(uniqueIdPrefix) {
+            const registrants = allRegistrations[uniqueIdPrefix] || [];
+
+            if (registrants.length === 0) {
+                alert('Não há inscritos nesta palestra para gerar um PDF.');
+                return;
+            }
+
+            const parts = uniqueIdPrefix.replace('dia', '').split('-');
+            const day = parseInt(parts[0]);
+            const lectureId = parts.slice(1).join('-');
+            const lectureInfo = lecturesByDay.find(d => d.day === day)?.lectures.find(l => l.id === lectureId);
+            const lectureTitle = lectureInfo ? lectureInfo.title : 'Palestra';
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            doc.setFontSize(18);
+            doc.text('Lista de Presença', 14, 22);
+            doc.setFontSize(12);
+            doc.text(`Palestra: ${lectureTitle}`, 14, 30);
+            doc.text(`Total de Inscritos: ${registrants.length}`, 14, 38);
+            
+            const tableColumn = ["#", "Nome do Aluno", "Série", "Curso", "Período"];
+            const tableRows = [];
+
+            registrants.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+
+            registrants.forEach((reg, index) => {
+                const regData = [
+                    index + 1,
+                    reg.name,
+                    `${reg.serie}ª Série`,
+                    reg.curso,
+                    reg.periodo
+                ];
+                tableRows.push(regData);
+            });
+
+            doc.autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 50,
+            });
+            
+            doc.save(`lista_inscritos_${lectureId}.pdf`);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            renderLectures();
+            listenToRegistrations();
+            
+            lecturesContainer.addEventListener('click', e => {
+                if (e.target.classList.contains('view-registrations-btn')) {
+                    toggleRegistrationsList(e.target.dataset.uniqueId);
+                }
+                if (e.target.classList.contains('toggle-description-btn')) {
+                    const targetId = e.target.dataset.targetId;
+                    const descDiv = document.getElementById(targetId);
+                    const isHidden = descDiv.classList.toggle('hidden');
+                    e.target.textContent = isHidden ? 'Ver Detalhes' : 'Ocultar Detalhes';
+                }
+                if (e.target.closest('.periodo-tab-btn')) {
+                    handlePeriodoTabClick(e);
+                }
+                if (e.target.classList.contains('download-pdf-btn')) {
+                    handleDownloadPdf(e.target.dataset.uniqueId);
+                }
+            });
+
+            tabsContainer.addEventListener('click', handleTabClick);
+            lecturesContainer.addEventListener('submit', handleRegistration);
+            deleteMyRegistrationsButton.addEventListener('click', handleDeleteMyRegistrations);
+        });
+    </script>
 </body>
 </html>
